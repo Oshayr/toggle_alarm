@@ -1,0 +1,165 @@
+blueprint:
+  name: Sleep on Android - Toggle Next Alarm
+  source_url: https://github.com/Oshayr/toggle_alarm/blob/main/scripts/toggle_alarm.yaml
+  description: >
+    # Toggle Alarm Home Assistant Blueprint
+
+    [![View on GitHub](https://img.shields.io/badge/GitHub-View%20Repository-blue?logo=github)](https://github.com/Oshayr/toggle_alarm/blob/main/scripts/toggle_alarm.yaml)
+
+    This blueprint creates a script that toggles the next alarm on your device, either setting or canceling it based on its current state and the label. 
+    
+    **Note:** 
+    
+    Due to companion app limitations, this will only work with the 'next_alarm' sensor. If an alarm is set after the 'next_alarm' without a label, it will break the script.
+
+    
+    **Prerequisites:**
+
+    - The [Home Assistant companion app](https://play.google.com/store/apps/details?id=io.homeassistant.companion.android) must be installed.
+
+    - The ['next_alarm' Sensor](https://companion.home-assistant.io/docs/gallery/android/#manage-sensors) must be active.
+
+    - The [Sleep as Android](https://play.google.com/store/apps/details?id=com.urbandroid.sleep) app must be installed and used as your alarm.
+
+  domain: script
+  author: Oshayr
+
+  input:
+    companion_app:
+      name: Companion App
+      icon: mdi:tablet-cellphone
+      description: "Required Next Alarm Sensor, and notification service from the companion app."
+      input:
+        next_alarm:
+          name: Next Alarm Sensor
+          description: The Companion App's sensor next alarm time.
+          selector:
+            entity:
+              domain: sensor
+              integration: mobile_app
+              device_class: timestamp
+        notify_service:
+          name: Notify Service
+          description:  "Specify the notification service to use (e.g., `notify.mobile_app_pixel_7`)."
+          selector:
+            text:
+          default: notify.mobile_app_pixel_7
+
+    post_actions:
+      name: Optional post actions
+      icon: mdi:cog
+      description: "Optional actions to execute after the alarm is set or canceled."
+      collapsed: true
+      input:
+        post_set_actions:
+          name: Post Set Actions
+          description: "Actions to execute after the alarm is set."
+          selector:
+            action:
+          default: []
+        post_cancel_actions:
+          name: Post Cancel Actions
+          description: "Actions to execute after the alarm is canceled."
+          selector:
+            action: 
+          default: []
+
+    advanced:
+      name: advanced settings
+      icon: mdi:cog
+      description: Advanced settings
+      collapsed: true
+      input:
+        timeout_seconds:
+          name: Timeout Seconds
+          description: "Configure the timeout duration in seconds."
+          selector:
+            number:
+              min: 0
+              max: 300
+              unit_of_measurement: seconds
+              mode: box
+          default: 30
+        default_alarm_tag:
+          name: Default Alarm Tag
+          description: Text Tag to be used with the alarm, this should be a single word.
+          selector:
+            text:
+          default: from_hass
+
+fields:
+  set_alarm_time:
+    name: Alarm Time
+    description: Set either the time or the input_datetime helper, the time has priority if set
+    required: false
+    example: "06:00:00"
+    selector:
+      time:
+  alarm_time_entity:
+    name: Alarm Time
+    description: Set either the time or the input_datetime helper, at least one is required
+    example: "input_datetime.alarm"
+    selector:
+      entity:
+        domain: input_datetime
+    required: false
+
+
+variables: 
+  next_alarm: !input next_alarm
+  post_set_actions: !input post_set_actions
+  post_cancel_actions: !input post_cancel_actions
+  timeout_seconds: !input timeout_seconds
+  alarm_tag: !input default_alarm_tag
+
+sequence:
+  - choose:
+    - conditions:
+        - condition: state
+          entity_id: !input next_alarm
+          state: 'unavailable'
+      sequence:
+        - variables:
+            extra_data: >
+              {% set alarm_time = set_alarm_time if set_alarm_time is defined and set_alarm_time is not none else states(alarm_time_entity) %}
+              {% set timelist = alarm_time.split(':') %}
+              {{ 'android.intent.extra.alarm.MESSAGE:' + alarm_tag + ',android.intent.extra.alarm.HOUR:' + timelist[0] + ',android.intent.extra.alarm.MINUTES:' + timelist[1] + ',android.intent.extra.alarm.SKIP_UI:true' }}
+        - service: !input notify_service
+          data:
+            message: command_activity
+            data:
+              intent_action: android.intent.action.SET_ALARM
+              intent_extras: "{{ extra_data }}"
+        - wait_for_trigger:
+            - platform: state
+              entity_id: !input next_alarm
+              from: 'unavailable'
+          continue_on_timeout: false
+          timeout:
+            seconds: "{{ timeout_seconds }}"
+        - choose:
+            - conditions:
+                - condition: template
+                  value_template: "{{ post_set_actions is not none }}"
+              sequence: !input post_set_actions
+    default:
+      - service: !input notify_service
+        data:
+          message: command_broadcast_intent
+          data:
+            intent_package_name: com.urbandroid.sleep
+            intent_action: com.urbandroid.sleep.alarmclock.ALARM_STATE_CHANGE
+            intent_extras: alarm_label:{{ alarm_tag }},alarm_enabled:false
+      - wait_for_trigger:
+          - platform: state
+            entity_id: !input next_alarm
+            to: 'unavailable'
+        continue_on_timeout: false
+        timeout:
+          seconds: "{{ timeout_seconds }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ post_cancel_actions is not none }}"
+            sequence: !input post_cancel_actions             
+mode: single

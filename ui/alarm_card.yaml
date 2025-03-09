@@ -1,0 +1,90 @@
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.pixel_7_next_alarm
+        state_not: unavailable
+    card:
+      type: custom:button-card
+      layout: icon_name_state
+      entity: sensor.pixel_7_next_alarm
+      size: 50%
+      show_state: true
+      show_name: false
+      show_icon: true
+      icon: mdi:alarm
+      tap_action:
+        action: call-service
+        service: script.talarm
+        target: {}
+        data:
+          alarm_time_entity: input_datetime.alarm
+      name: |
+        [[[ 
+          return entity.state === 'active' ? 'Alarm Active' : 'Alarm Inactive';
+        ]]]
+      state_display: |
+        [[[ 
+          if (entity.state === 'active') {
+            const finishTime = entity.attributes.finishes_at;
+            return finishTime ? new Date(finishTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+          } else {
+            const alarmEntity = states['input_datetime.alarm'];
+            return alarmEntity ? alarmEntity.state : 'No Alarm Set';
+          }
+        ]]]
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.pixel_7_next_alarm
+        state: unavailable
+    card:
+      type: custom:time-picker-card
+      entity: input_datetime.alarm
+      hour_step: 1
+      minute_step: 1
+      layout:
+        align_icons: center
+        justify_content: center
+        embedded: false
+        thin: false
+        hour_mode: single
+        align_controls: center
+        name: inside
+      hour_mode: 24
+      hide:
+        icon: true
+        name: false
+      styles:
+        card:
+          - padding: 16px
+          - border-radius: 12px
+          - box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2)
+          - background-color: var(--card-background-color)
+          - display: flex
+          - flex-direction: column
+          - align-items: center
+        icon:
+          - color: var(--paper-item-icon-color)
+          - width: 48px
+          - height: 48px
+        layout:
+          - display: flex
+          - align-items: center
+          - justify-content: center
+        name:
+          - font-weight: bold
+          - font-size: 16px
+          - color: var(--primary-text-color)
+        state:
+          - font-size: 14px
+          - color: var(--secondary-text-color)
+      tap_action:
+        action: call-service
+        service: script.talarm
+        target: {}
+        data:
+          alarm_time_entity: input_datetime.alarm
+      name: Set Alarm
+      link_values: true

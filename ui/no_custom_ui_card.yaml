@@ -1,0 +1,34 @@
+type: vertical-stack
+cards:
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.pixel_7_next_alarm
+        state_not: unavailable
+    card:
+      type: tile
+      entity: sensor.pixel_7_next_alarm
+      icon: mdi:alarm
+      tap_action:
+        action: call-service
+        service: script.talarm
+        target: {}
+        data:
+          alarm_time_entity: input_datetime.alarm
+      name: ' Alarm'
+      hide_state: false
+  - type: conditional
+    conditions:
+      - condition: state
+        entity: sensor.pixel_7_next_alarm
+        state: unavailable
+    card:
+      type: tile
+      entity: input_datetime.alarm
+      tap_action:
+        action: call-service
+        service: script.talarm
+        target: {}
+        data:
+          alarm_time_entity: input_datetime.alarm
+      name: Set Alarm
