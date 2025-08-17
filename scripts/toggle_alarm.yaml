@@ -36,8 +36,6 @@ blueprint:
           selector:
             entity:
               domain: sensor
-              integration: mobile_app
-              device_class: timestamp
         notify_service:
           name: Notify Service
           description:  "Specify the notification service to use (e.g., `notify.mobile_app_pixel_7`)."
